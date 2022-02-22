@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -11,6 +12,8 @@ namespace SlackActiveWindowBot
     class Program
     {
         private static string Token { get; set; }
+
+        private static string OSAScript = "getwindow.script";
 
         static void Main(string[] args)
         {
@@ -31,7 +34,7 @@ namespace SlackActiveWindowBot
                 File.WriteAllText(tokenFileName, token);
                 Token = token;
             }
-            
+
             MainLoop();
 
             Console.ReadLine();
@@ -43,7 +46,25 @@ namespace SlackActiveWindowBot
         [DllImport("user32.dll")]
         static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
 
-        private static string GetActiveWindowTitle()
+        private static string GetActiveWindowTitle_OSX()
+        {
+            string test = $" -c \"osascript {OSAScript} \"";
+            Process process = new Process();
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                UseShellExecute = false,
+                FileName = "/bin/bash",
+                Arguments = test,
+                CreateNoWindow = false,
+                RedirectStandardOutput = true,
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            };
+            process.StartInfo = startInfo;
+            process.Start();
+            return process?.StandardOutput.ReadToEnd();
+        }
+
+        private static string GetActiveWindowTitle_Windows()
         {
             const int nChars = 256;
             var buff = new StringBuilder(nChars);
@@ -53,24 +74,39 @@ namespace SlackActiveWindowBot
             {
                 return buff.ToString();
             }
-            
+
             return null;
         }
 
         static async void MainLoop()
         {
             var lastWindowName = string.Empty;
-            
+
             while (true)
             {
-                var windowName = GetActiveWindowTitle();
+                string windowName;
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    windowName = GetActiveWindowTitle_Windows();
+                }
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    windowName = GetActiveWindowTitle_OSX();
+                }
+                else
+                {
+                    windowName = "fuck you";
+                }
+
+                Console.WriteLine($"Window name: {windowName}");
 
                 if (lastWindowName != windowName && !string.IsNullOrEmpty(windowName))
                 {
                     UpdateStatus(windowName.Substring(0, Math.Min(windowName.Length, 60)));
                     lastWindowName = windowName;
                 }
-                
+
                 await Task.Delay(2500);
             }
         }
@@ -86,7 +122,7 @@ namespace SlackActiveWindowBot
                     StatusText = windowName,
                 },
             });
-            
+
             Console.WriteLine($"Request status update to {windowName} Response: {response.OK} Error: {response.Error}");
         }
     }

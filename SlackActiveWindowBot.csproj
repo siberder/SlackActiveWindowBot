@@ -9,4 +9,10 @@
       <PackageReference Include="Slack.NetStandard" Version="3.10.0-beta1" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Update="getwindow.script">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
 </Project>
